@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Salary Ticker</title>
+<title>薪水計時器</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -204,7 +204,7 @@
 <div class="page">
 
   <header>
-    <h1 class="sr-only">Salary Ticker</h1>
+    <h1 class="sr-only">薪水計時器</h1>
     <div class="seg" role="group" aria-label="計時模式">
       <button id="modeToday" aria-pressed="true">今日上班</button>
       <button id="modeCustom" aria-pressed="false">自訂計時</button>
@@ -324,7 +324,7 @@
 
     <footer class="foot-wrap">
       <p class="foot" id="foot"></p>
-      <p class="foot copy">© 2026 Salary Ticker. All rights reserved.</p>
+      <p class="foot copy">© 2026 Real-Time Salary Ticker. All rights reserved.</p>
     </footer>
   </main>
 </div>
@@ -338,6 +338,7 @@
     <label class="field">下班時間<input id="fEnd" type="time"></label>
   </div>
   <label class="check"><input type="checkbox" id="fLunch"> 午休不計薪</label>
+  <label class="check"><input type="checkbox" id="fWeekend"> 週六、週日休息（不計薪）</label>
   <div class="grid2">
     <label class="field">午休開始<input id="fLs" type="time"></label>
     <label class="field">午休結束<input id="fLe" type="time"></label>
@@ -383,6 +384,7 @@
   const defaults = {
     salary: 45000, days: 22, start: '09:00', end: '18:00',
     lunch: true, ls: '12:00', le: '13:00',
+    weekendOff: true,
     goal: { name: '下班吃燒肉', amount: 800 },
     items: DEFAULT_ITEMS,
   };
@@ -421,14 +423,16 @@
     return el;
   }
 
-  function derived() {
+  function derived(dt) {
     const s = toSec(cfg.start), e = toSec(cfg.end);
     const ls = toSec(cfg.ls), le = toSec(cfg.le);
     const lunchLen = cfg.lunch ? Math.max(0, Math.min(le, e) - Math.max(ls, s)) : 0;
     const workSecs = Math.max(1, e - s - lunchLen);
     const daily = cfg.salary / Math.max(1, cfg.days);
     const perSec = daily / workSecs;
-    return { s, e, ls, le, workSecs, daily, perSec };
+    const day = dt ? dt.getDay() : -1;
+    const isWeekend = !!cfg.weekendOff && (day === 0 || day === 6);
+    return { s, e, ls, le, workSecs, daily, perSec, isWeekend };
   }
 
   function workedAt(sec, d) {
@@ -479,26 +483,27 @@
   function tick() {
     const now = Date.now();
     const dt = new Date(now);
-    const d = derived();
+    const d = derived(dt);
     const secOfDay = dt.getHours() * 3600 + dt.getMinutes() * 60 + dt.getSeconds() + dt.getMilliseconds() / 1000;
 
     let earned, clockText, state, stateText;
 
     if (mode === 'today') {
-      const worked = workedAt(secOfDay, d);
+      const worked = d.isWeekend ? 0 : workedAt(secOfDay, d);
       earned = worked * d.perSec;
       clockText = hms(worked);
       const frac = worked / d.workSecs;
       $('dayFill').style.width = (frac * 100).toFixed(2) + '%';
       $('dayTrack').setAttribute('aria-valuenow', (frac * 100).toFixed(0));
       let leftLbl;
-      if (secOfDay < d.s) { state = 'off'; stateText = '尚未上班'; leftLbl = '距離上班 ' + hms(d.s - secOfDay); }
+      if (d.isWeekend) { state = 'off'; stateText = '休息日'; leftLbl = '今天不計薪，好好休息'; }
+      else if (secOfDay < d.s) { state = 'off'; stateText = '尚未上班'; leftLbl = '距離上班 ' + hms(d.s - secOfDay); }
       else if (secOfDay >= d.e) { state = 'off'; stateText = '下班！'; leftLbl = '恭喜下班！'; }
       else if (cfg.lunch && secOfDay >= d.ls && secOfDay < d.le) { state = 'lunch'; stateText = '午休中'; leftLbl = '距離下班 ' + hms(d.e - secOfDay); }
       else { state = 'working'; stateText = '上班中'; leftLbl = '距離下班 ' + hms(d.e - secOfDay); }
       setText($('leftLbl'), leftLbl);
-      $('notice').hidden = state !== 'off';
-      if (state === 'off') {
+      $('notice').hidden = state !== 'off' || d.isWeekend;
+      if (state === 'off' && !d.isWeekend) {
         setText($('noticeText'), '現在時間 ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + '，薪水會在上班時間自動開始跳動');
       }
     } else {
@@ -555,7 +560,7 @@
   }
 
   function renderStatic() {
-    const d = derived();
+    const d = derived(new Date());
     setText($('sSec'), d.perSec.toFixed(4));
     setText($('sMin'), (d.perSec * 60).toFixed(2));
     setText($('sHour'), money(d.perSec * 3600, 0));
@@ -677,6 +682,7 @@
     $('fSalary').value = cfg.salary; $('fDays').value = cfg.days;
     $('fStart').value = cfg.start; $('fEnd').value = cfg.end;
     $('fLunch').checked = cfg.lunch; $('fLs').value = cfg.ls; $('fLe').value = cfg.le;
+    $('fWeekend').checked = !!cfg.weekendOff;
     $('err').textContent = '';
     dlg.showModal();
   }
@@ -689,6 +695,7 @@
       days: Math.min(31, Math.max(1, Number($('fDays').value) || 22)),
       start: $('fStart').value || '09:00', end: $('fEnd').value || '18:00',
       lunch: $('fLunch').checked, ls: $('fLs').value || '12:00', le: $('fLe').value || '13:00',
+      weekendOff: $('fWeekend').checked,
     };
     if (toSec(next.end) <= toSec(next.start)) { $('err').textContent = '下班時間必須晚於上班時間'; return; }
     if (next.lunch && toSec(next.le) <= toSec(next.ls)) { $('err').textContent = '午休結束必須晚於午休開始'; return; }

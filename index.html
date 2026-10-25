@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Salary Ticker</title>
+<title>薪水計時器</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -84,10 +84,11 @@
 
   /* hero */
   .hero { display: flex; flex-direction: column; align-items: center; text-align: center; }
-  .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 5px 14px; font-size: 13px; color: var(--muted); }
-  .pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: block; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 5px 14px; font-size: 13px; color: var(--muted); max-width: 100%; text-align: center; line-height: 1.4; }
+  .pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: block; flex: none; }
   .pill[data-state="lunch"] i { background: var(--amber); }
   .pill[data-state="off"] i, .pill[data-state="paused"] i { background: var(--muted); }
+  .rest-msg { margin: 56px 0; padding: 0 8px; font-size: clamp(26px, 7vw, 44px); font-weight: 700; line-height: 1.4; color: var(--accent); text-wrap: balance; }
   .lead { margin: 28px 0 0; color: var(--muted); font-size: 15px; }
   .big { display: flex; align-items: baseline; justify-content: center; margin-top: 8px; font-family: var(--mono); font-variant-numeric: tabular-nums; line-height: 1.05; max-width: 100%; }
   .big .cur { font-size: clamp(22px, 6vw, 44px); color: var(--muted); margin-right: 10px; }
@@ -196,6 +197,14 @@
   .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 14px 0 12px; }
   .check input { width: 16px; height: 16px; accent-color: var(--accent); }
   .dlg-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+  .days-field { border: 0; padding: 0; margin: 16px 0 0; min-width: 0; }
+  .days-field legend { padding: 0; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+  .days { display: flex; gap: 6px; }
+  .day-chip { flex: 1; min-width: 0; cursor: pointer; position: relative; }
+  .day-chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .day-chip span { display: grid; place-items: center; height: 40px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--muted); font-size: 14px; }
+  .day-chip input:checked + span { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
+  .day-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
 </style>
@@ -204,7 +213,7 @@
 <div class="page">
 
   <header>
-    <h1 class="sr-only">Salary Ticker</h1>
+    <h1 class="sr-only">薪水計時器</h1>
     <div class="seg" role="group" aria-label="計時模式">
       <button id="modeToday" aria-pressed="true">今日上班</button>
       <button id="modeCustom" aria-pressed="false">自訂計時</button>
@@ -223,8 +232,9 @@
   <main style="display:contents">
     <section class="hero">
       <div class="pill" id="pill" data-state="working"><i></i><span id="pillText">上班中</span></div>
+      <p class="rest-msg" id="restMsg" hidden>好好休息！拿上班日的薪水犒賞自己！</p>
       <p class="lead" id="lead">你以為你失去的是時間，其實你得到的是薪水</p>
-      <div class="big" aria-label="已賺金額">
+      <div class="big" id="big" aria-label="已賺金額">
         <span class="cur">NT$</span><span class="int" id="heroInt">0</span><span class="dec" id="heroDec">.00</span>
       </div>
       <div class="clock" id="clock">00:00:00</div>
@@ -324,7 +334,7 @@
 
     <footer class="foot-wrap">
       <p class="foot" id="foot"></p>
-      <p class="foot copy">© 2026 Salary Ticker. All rights reserved.</p>
+      <p class="foot copy">© 2026 Real-Time Salary Ticker. All rights reserved.</p>
     </footer>
   </main>
 </div>
@@ -332,17 +342,29 @@
 <dialog id="dlg">
   <h2>設定</h2>
   <div class="grid2">
-    <label class="field">月薪 NT$<input id="fSalary" type="number" inputmode="numeric" min="0" step="1000"></label>
-    <label class="field">每月上班天數<input id="fDays" type="number" inputmode="numeric" min="1" max="31"></label>
+    <label class="field" style="grid-column: 1 / -1">月薪 NT$<input id="fSalary" type="number" inputmode="numeric" min="0" step="1000"></label>
     <label class="field">上班時間<input id="fStart" type="time"></label>
     <label class="field">下班時間<input id="fEnd" type="time"></label>
   </div>
   <label class="check"><input type="checkbox" id="fLunch"> 午休不計薪</label>
-  <label class="check"><input type="checkbox" id="fWeekend"> 週六、週日休息（不計薪）</label>
   <div class="grid2">
     <label class="field">午休開始<input id="fLs" type="time"></label>
     <label class="field">午休結束<input id="fLe" type="time"></label>
   </div>
+  <fieldset class="days-field">
+    <legend>休息日（可複選）</legend>
+    <div class="days">
+      <label class="day-chip"><input type="checkbox" data-day="0"><span>日</span></label>
+      <label class="day-chip"><input type="checkbox" data-day="1"><span>一</span></label>
+      <label class="day-chip"><input type="checkbox" data-day="2"><span>二</span></label>
+      <label class="day-chip"><input type="checkbox" data-day="3"><span>三</span></label>
+      <label class="day-chip"><input type="checkbox" data-day="4"><span>四</span></label>
+      <label class="day-chip"><input type="checkbox" data-day="5"><span>五</span></label>
+      <label class="day-chip"><input type="checkbox" data-day="6"><span>六</span></label>
+    </div>
+    <p class="small" id="daysNote" style="margin:10px 0 0"></p>
+  </fieldset>
+  <label class="check"><input type="checkbox" id="fRestPaid"> 休息日也計薪</label>
   <p class="err" id="err" role="alert"></p>
   <div class="dlg-actions">
     <button class="btn" id="dCancel">取消</button>
@@ -382,9 +404,10 @@
     { icon: 'film', unit: '張', name: '電影票', price: 320 },
   ];
   const defaults = {
-    salary: 45000, days: 22, start: '09:00', end: '18:00',
+    salary: 45000, start: '09:00', end: '18:00',
     lunch: true, ls: '12:00', le: '13:00',
-    weekendOff: true,
+    restDays: [0, 6],
+    restPaid: true,
     goal: { name: '下班吃燒肉', amount: 800 },
     items: DEFAULT_ITEMS,
   };
@@ -395,11 +418,14 @@
       Object.assign(cfg, saved);
       cfg.goal = Object.assign({}, defaults.goal, saved.goal || {});
       if (!Array.isArray(cfg.items)) cfg.items = clone(DEFAULT_ITEMS);
+      if (!Array.isArray(saved.restDays)) cfg.restDays = saved.weekendOff === false ? [] : [0, 6];
+      delete cfg.weekendOff;
     }
   } catch (e) {}
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
 
   let mode = 'today';
+  let lastMk = -1;
   const custom = { accum: 0, startedAt: null };
 
   /* ---------- helpers ---------- */
@@ -423,16 +449,25 @@
     return el;
   }
 
+  function workDaysIn(year, month, rest) {
+    const total = new Date(year, month + 1, 0).getDate();
+    let n = 0;
+    for (let i = 1; i <= total; i++) if (!rest.includes(new Date(year, month, i).getDay())) n++;
+    return { total, n };
+  }
+
   function derived(dt) {
     const s = toSec(cfg.start), e = toSec(cfg.end);
     const ls = toSec(cfg.ls), le = toSec(cfg.le);
     const lunchLen = cfg.lunch ? Math.max(0, Math.min(le, e) - Math.max(ls, s)) : 0;
     const workSecs = Math.max(1, e - s - lunchLen);
-    const daily = cfg.salary / Math.max(1, cfg.days);
+    const md = workDaysIn(dt.getFullYear(), dt.getMonth(), cfg.restDays);
+    const workDays = md.n || md.total;
+    const daily = cfg.salary / workDays;
     const perSec = daily / workSecs;
-    const day = dt ? dt.getDay() : -1;
-    const isWeekend = !!cfg.weekendOff && (day === 0 || day === 6);
-    return { s, e, ls, le, workSecs, daily, perSec, isWeekend };
+    const day = dt.getDay();
+    const isRest = cfg.restDays.includes(day);
+    return { s, e, ls, le, workSecs, daily, perSec, workDays, isRest, noPay: isRest && !cfg.restPaid };
   }
 
   function workedAt(sec, d) {
@@ -484,26 +519,33 @@
     const now = Date.now();
     const dt = new Date(now);
     const d = derived(dt);
+    const mk = dt.getFullYear() * 12 + dt.getMonth();
+    if (mk !== lastMk) { lastMk = mk; renderStatic(); }
     const secOfDay = dt.getHours() * 3600 + dt.getMinutes() * 60 + dt.getSeconds() + dt.getMilliseconds() / 1000;
 
     let earned, clockText, state, stateText;
 
     if (mode === 'today') {
-      const worked = d.isWeekend ? 0 : workedAt(secOfDay, d);
+      const worked = d.noPay ? 0 : workedAt(secOfDay, d);
       earned = worked * d.perSec;
       clockText = hms(worked);
       const frac = worked / d.workSecs;
       $('dayFill').style.width = (frac * 100).toFixed(2) + '%';
       $('dayTrack').setAttribute('aria-valuenow', (frac * 100).toFixed(0));
       let leftLbl;
-      if (d.isWeekend) { state = 'off'; stateText = '休息日'; leftLbl = '今天不計薪，好好休息'; }
+      if (d.noPay) { state = 'off'; stateText = ''; leftLbl = ''; }
       else if (secOfDay < d.s) { state = 'off'; stateText = '尚未上班'; leftLbl = '距離上班 ' + hms(d.s - secOfDay); }
       else if (secOfDay >= d.e) { state = 'off'; stateText = '下班！'; leftLbl = '恭喜下班！'; }
       else if (cfg.lunch && secOfDay >= d.ls && secOfDay < d.le) { state = 'lunch'; stateText = '午休中'; leftLbl = '距離下班 ' + hms(d.e - secOfDay); }
       else { state = 'working'; stateText = '上班中'; leftLbl = '距離下班 ' + hms(d.e - secOfDay); }
+      if (d.isRest && !d.noPay) stateText = '今天不上班但是也有錢！';
       setText($('leftLbl'), leftLbl);
-      $('notice').hidden = state !== 'off' || d.isWeekend;
-      if (state === 'off' && !d.isWeekend) {
+      $('notice').hidden = state !== 'off' || d.isRest;
+      $('pill').hidden = d.noPay; $('lead').hidden = d.noPay; $('big').hidden = d.noPay;
+      $('restMsg').hidden = !d.noPay;
+      setText($('lead'), d.isRest ? '～開開心心輕輕鬆鬆得到錢～' : '你以為你失去的是時間，其實你得到的是薪水');
+      $('dayBar').hidden = d.isRest; $('clock').hidden = d.isRest;
+      if (state === 'off' && !d.isRest) {
         setText($('noticeText'), '現在時間 ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes()) + '，薪水會在上班時間自動開始跳動');
       }
     } else {
@@ -513,6 +555,9 @@
       state = custom.startedAt ? 'working' : 'paused';
       stateText = custom.startedAt ? '計時中' : (custom.accum ? '已暫停' : '準備開始');
       $('notice').hidden = true;
+      $('pill').hidden = false; $('lead').hidden = false; $('big').hidden = false;
+      $('restMsg').hidden = true;
+      $('dayBar').hidden = true; $('clock').hidden = false;
     }
 
     const [ip, dp] = earned.toFixed(2).split('.');
@@ -569,7 +614,7 @@
     setText($('endLbl'), cfg.end);
     setText($('goalName'), cfg.goal.name);
     setText($('goalAmt'), 'NT$' + money(cfg.goal.amount, 0));
-    setText($('foot'), '以月薪 NT$' + money(cfg.salary, 0) + '、每月 ' + cfg.days + ' 個工作天計算');
+    setText($('foot'), '以月薪 NT$' + money(cfg.salary, 0) + '、本月 ' + d.workDays + ' 個工作天計算');
   }
 
   /* ---------- mode toggle ---------- */
@@ -677,12 +722,22 @@
   };
 
   /* ---------- settings dialog ---------- */
+  function updateDaysNote() {
+    const rest = [...document.querySelectorAll('[data-day]')].filter((c) => c.checked).map((c) => Number(c.dataset.day));
+    const now = new Date();
+    const md = workDaysIn(now.getFullYear(), now.getMonth(), rest);
+    $('daysNote').textContent = (now.getMonth() + 1) + ' 月共 ' + md.total + ' 天，工作 ' + md.n + ' 天、休息 ' + (md.total - md.n) + ' 天（日薪依工作天數自動計算）';
+  }
+  document.querySelectorAll('[data-day]').forEach((c) => c.addEventListener('change', updateDaysNote));
+
   const dlg = $('dlg');
   function openSettings() {
-    $('fSalary').value = cfg.salary; $('fDays').value = cfg.days;
+    $('fSalary').value = cfg.salary;
     $('fStart').value = cfg.start; $('fEnd').value = cfg.end;
     $('fLunch').checked = cfg.lunch; $('fLs').value = cfg.ls; $('fLe').value = cfg.le;
-    $('fWeekend').checked = !!cfg.weekendOff;
+    document.querySelectorAll('[data-day]').forEach((c) => { c.checked = cfg.restDays.includes(Number(c.dataset.day)); });
+    $('fRestPaid').checked = !!cfg.restPaid;
+    updateDaysNote();
     $('err').textContent = '';
     dlg.showModal();
   }
@@ -692,10 +747,10 @@
   $('dSave').onclick = () => {
     const next = {
       salary: Math.max(0, Number($('fSalary').value) || 0),
-      days: Math.min(31, Math.max(1, Number($('fDays').value) || 22)),
       start: $('fStart').value || '09:00', end: $('fEnd').value || '18:00',
       lunch: $('fLunch').checked, ls: $('fLs').value || '12:00', le: $('fLe').value || '13:00',
-      weekendOff: $('fWeekend').checked,
+      restDays: [...document.querySelectorAll('[data-day]')].filter((c) => c.checked).map((c) => Number(c.dataset.day)),
+      restPaid: $('fRestPaid').checked,
     };
     if (toSec(next.end) <= toSec(next.start)) { $('err').textContent = '下班時間必須晚於上班時間'; return; }
     if (next.lunch && toSec(next.le) <= toSec(next.ls)) { $('err').textContent = '午休結束必須晚於午休開始'; return; }
